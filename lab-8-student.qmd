@@ -1,9 +1,24 @@
+---
+title: "Lab 8"
+author: Alyssa Walter
+format: html
+editor: source
+embed-resources: true
+code-tools: true
+execute: 
+  echo: true
+  error: true
+  warnings: false
+---
+
 The goal of this lab is learn more about exploring missing data and writing
 modular code.
 
 ```{r}
 #| label: setup
+library(tidyverse)
 
+fish<- read.csv("BlackfootFish.csv")
 
 ```
 
@@ -37,6 +52,15 @@ measurement errors.
 ```{r}
 #| label: find-missing-values
 
+fish %>%
+  summarise(
+    rows_with_na = sum(!complete.cases(.)), #create a new variable as the sum of all rows with nas
+    variables_with_na = toString( #create a new variable to chack which variables have nas
+      names(across())[colSums(across(everything(), ~is.na(.))) > 0]
+    )
+  )
+
+
 ```
 
 
@@ -46,6 +70,9 @@ measurement errors.
 ```{r}
 #| label: map-missing-values-of-fish
 
+fish %>%
+  map_int(~ sum(is.na(.))) %>% #search for all nas and count them
+  enframe(name = "variable", value = "n_missing") #print the variable and n_missing columns as a table
 
 ```
 
@@ -54,6 +81,22 @@ measurement errors.
 
 ```{r}
 #| label: visual-of-missing-values-over-time
+
+fish %>%
+  group_by(year, section, trip) %>% #group the data
+  summarise(total_missing = sum(map_int(across(), ~ sum(is.na(.)))), .groups = "drop") %>% #create a new variable that is the sum of all rows with nas in each group
+  ggplot(aes(x = factor(year), y = total_missing, fill = factor(trip))) + # plot year on the x axis and total nas on the y, faceted (dodge) by trip
+  geom_col(position = "dodge") +
+  facet_wrap(~section, ncol = 1) +  #arrange the graphs vertically
+labs(
+    title = "Missing Values by Year and Fishing Section", #add title
+    x = "Year", #label axis
+    y = "# Missing Values",
+    fill = "Trip" #label the legend with color for trips
+  ) +
+  theme_light()+ #set the theme
+  theme(strip.text = element_text(size = 12))  # increase size of section labels
+
 
 ```
 
@@ -87,6 +130,7 @@ understand the intent of the process. *Additionally, it can make it very difficu
 
 **3. What is the mistake I made in the above rescaling code?**
 
+> The mistake was forgetting to change the last "length" to "weight" for rescaling the weight column.
 
 When you find yourself copy-pasting lines of code, it's time to write a
 function, instead!
@@ -98,6 +142,15 @@ function, instead!
 
 ```{r}
 #| label: write-rescale-function
+
+rescale_01 <- function(x) { #create the function
+  if (!is.numeric(x)) { #check if the input is numeric
+    stop("NA")} #stop the function if its not
+  if (length(x) <= 1) {  #check if the length of the input is greater than 1
+    stop("NA")}  #stop the function if its not
+  range <- range(x, na.rm = TRUE)  #range pulls the minimum and maximum values, so that you can call on them later
+  return((x - range[1]) / (range[2] - range[1]))  #rescale the data
+}
 
 ```
 
@@ -146,14 +199,21 @@ statement in order to create a `length_scaled` variable.
 
 ```{r}
 #| label: compare-original-with-rescaled-lengths
+#| layout-ncol: 2
 
-fish |>  
-  ggplot(aes(x = length)) + 
-  geom_histogram(binwidth = 45) +
-  labs(x = "Original Values of Fish Length (mm)") +
-  scale_y_continuous(limits = c(0,4000))
+  fish |>  
+    ggplot(aes(x = length)) + 
+    geom_histogram(binwidth = 45) +
+    labs(x = "Original Values of Fish Length (mm)") +
+    scale_y_continuous(limits = c(0,4000))
 
-# Code for Q7 plot.
+  fish |>  
+    mutate(length_scaled = rescale_01(length)) %>% #create a new variable that is the rescaled length
+    ggplot(aes(x = length_scaled)) +  #plot the scaled data on the x axis
+    geom_histogram(binwidth = 0.05) + #set the binwidth to appear the same as the original
+    labs(x = "Rescaled Values of Fish Length (mm)") + # label the x axis
+    scale_y_continuous(limits = c(0,4000)) # set the y axis limits to be the same as the original
+
 
 ```
 
@@ -187,6 +247,11 @@ section of R for Data Science!
 ```{r}
 #| label: rescale-data-frame-function
 
+rescale_column <- function(data, columns) { #set inputs to data and columns
+  data %>%
+    mutate(across(.cols = {{columns}}, ~ rescale_01(.)))  #  use across to apply rescale_01 to selected columns
+}
+
 ```
 
 **9. Use your `rescale_column()` function to rescale *both* the `length` and `weight` columns.**
@@ -198,4 +263,8 @@ I expect that you carry out this process by calling the `rescale_column()` funct
 ```{r}
 #| label: rescale-two-columns
 
+fish <- rescale_column(fish, c(length, weight)) #rescale the length and weight columns
+
 ```
+
+
