@@ -1,5 +1,5 @@
 ---
-title: "Lab 8"
+title: "Lab 8 Revised"
 author: Alyssa Walter
 format: html
 editor: source
@@ -16,9 +16,12 @@ modular code.
 
 ```{r}
 #| label: setup
+#| include: FALSE # to hide code output
+
+
 library(tidyverse)
 
-fish<- read.csv("BlackfootFish.csv")
+fish<- read_csv("BlackfootFish.csv", show_col_types=FALSE) #changed to hide tidyverse output
 
 ```
 
